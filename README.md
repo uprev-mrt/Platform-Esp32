@@ -1,4 +1,4 @@
-# ESP32 Platform
+# ESP32
 >Requires: Modules/Platforms/Common
 
 Following the example projects to create a template, you should end up with a main directory containing a component.mk file.
