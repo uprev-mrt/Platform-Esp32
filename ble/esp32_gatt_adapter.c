@@ -27,6 +27,21 @@
     _attr.att_desc.value        =   (uint8_t *) _val ;\
  }
 
+
+/* Private Variables ---------------------------------------------------------*/
+static const uint16_t primary_service_uuid         = ESP_GATT_UUID_PRI_SERVICE;
+static const uint16_t character_declaration_uuid   = ESP_GATT_UUID_CHAR_DECLARE;
+static const uint16_t character_client_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
+
+static const uint8_t char_prop_read = ESP_GATT_CHAR_PROP_BIT_READ;
+static const uint8_t char_prop_read_notify = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
+static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_READ;
+static const uint8_t char_prop_read_write_notify = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY | ESP_GATT_CHAR_PROP_BIT_WRITE;
+static const uint8_t char_prop_write = ESP_GATT_CHAR_PROP_BIT_WRITE;
+
+
+/* Private functions for debug assistance ------------------------------------*/
+
 void print_attr(esp_gatts_attr_db_t* attr )
 {
   char buf[512];
@@ -57,17 +72,6 @@ void print_svc(mrt_gatt_svc_t* svc)
   ESP_LOGI(GATT_ADAPTER_TAG, "%s", buf );
 }
 
-/* Private Variables ---------------------------------------------------------*/
-static const uint16_t primary_service_uuid         = ESP_GATT_UUID_PRI_SERVICE;
-static const uint16_t character_declaration_uuid   = ESP_GATT_UUID_CHAR_DECLARE;
-static const uint16_t character_client_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
-
-static const uint8_t char_prop_read = ESP_GATT_CHAR_PROP_BIT_READ;
-static const uint8_t char_prop_read_notify = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
-static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_READ;
-static const uint8_t char_prop_read_write_notify = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY | ESP_GATT_CHAR_PROP_BIT_WRITE;
-static const uint8_t char_prop_write = ESP_GATT_CHAR_PROP_BIT_WRITE;
-
 /* Override Funtions for mrt_gatt_interface  ---------------------------------*/
 
 
@@ -75,6 +79,19 @@ static const uint8_t char_prop_write = ESP_GATT_CHAR_PROP_BIT_WRITE;
 
 mrt_status_t mrt_gatt_update_char_val(mrt_gatt_char_t* chr, uint8_t* data, uint16_t len)
 {
+
+    if(len > chr->size)
+    {
+        return MRT_STATUS_ERROR;
+    }
+
+    //If The character is not registered yet, just update the data, and it will get picked up during registration 
+    if(chr->handles.val_handle == 0)
+    {
+      memcpy(chr->data.value, data, len);
+      chr->data.len = len;
+      return MRT_STATUS_OK;
+    }
 
     //Update attribute
     esp_err_t error = esp_ble_gatts_set_attr_value(chr->handles.val_handle, len, data);
