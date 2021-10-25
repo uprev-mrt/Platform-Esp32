@@ -68,6 +68,58 @@ static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_G
 static const uint8_t char_prop_read_write_notify = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY | ESP_GATT_CHAR_PROP_BIT_WRITE;
 static const uint8_t char_prop_write = ESP_GATT_CHAR_PROP_BIT_WRITE;
 
+/* Override Funtions for mrt_gatt_interface  ---------------------------------*/
+
+
+
+
+mrt_status_t mrt_gatt_update_char_val(mrt_gatt_char_t* chr, uint8_t* data, uint16_t len)
+{
+
+    //Update attribute
+    esp_err_t error = esp_ble_gatts_set_attr_value(chr->handles.val_handle, len, data);
+    if (error != ESP_OK) {
+        ESP_LOGI(GATT_ADAPTER_TAG, "UPDATE: Failed to set handle: (%x): GATT Char, %x", chr->handles.val_handle, error);
+        return MRT_STATUS_ERROR;
+    }
+
+    //Send notifications/indications if enabled 
+    if(chr->cccd & (MRT_CCCD_NOTIFY_ENABLED | MRT_CCCD_INDICATE_ENABLED ))
+    {
+      mrt_gatt_notify_char_val(chr,data,len);
+    }
+
+    //Read back the value to make sure cache is in sync
+    mrt_gatt_get_char_val(chr);
+
+    return MRT_STATUS_OK;
+}
+
+mrt_status_t mrt_gatt_notify_char_val(mrt_gatt_char_t* chr, uint8_t* data, uint16_t len)
+{
+    esp_err_t error;
+    //Send notifications/indications if enabled 
+    if(chr->cccd & (MRT_CCCD_NOTIFY_ENABLED | MRT_CCCD_INDICATE_ENABLED ))
+    {
+      error = esp_ble_gatts_send_indicate(((mrt_profile_ctx_t*)chr->svc->pro->ctx)->gatts_if ,     
+                                          ((mrt_profile_ctx_t*)chr->svc->pro->ctx)->conn_id,
+                                          chr->handles.val_handle,
+                                          len,
+                                          data,
+                                          (chr->cccd & MRT_CCCD_INDICATE_ENABLED) >> 1);
+    }
+
+    return MRT_STATUS_OK;
+}
+
+
+mrt_status_t mrt_gatt_get_char_val(mrt_gatt_char_t* chr)
+{
+    //Read back the value to make sure cache is in sync
+    esp_ble_gatts_get_attr_value(chr->handles.val_handle, &chr->data.len, (const uint8_t **) &chr->data.value);
+
+    return MRT_STATUS_OK;
+}
 
 /* Exported functions ------------------------------------------------------- */
 
@@ -214,54 +266,7 @@ void mrt_gatt_print_uuid(esp_bt_uuid_t* esp_uuid, mrt_gatt_uuid_t* mrt_uuid)
 
 }
 
-/* Override Funtions for mrt_gatt_interface  ---------------------------------*/
 
-/**
- * @brief Updates the characteristic value
- * @param chr ptr to char
- * @param data data to update with
- * @param len length of data in bytes
- * @return mrt_status_t 
- */
-mrt_status_t mrt_gatt_update_char_val(mrt_gatt_char_t* chr, uint8_t* data, int len)
-{
-
-    //Update attribute
-    esp_err_t error = esp_ble_gatts_set_attr_value(chr->handles.val_handle, len, data);
-    if (error != ESP_OK) {
-        ESP_LOGI(GATT_ADAPTER_TAG, "UPDATE: Failed to set handle: (%x): GATT Char, %x", chr->handles.val_handle, error);
-        return MRT_STATUS_ERROR;
-    }
-
-    //Send notifications/indications if enabled 
-    if(chr->cccd & (MRT_CCCD_NOTIFY_ENABLED | MRT_CCCD_INDICATE_ENABLED ))
-    {
-      error = esp_ble_gatts_send_indicate(((mrt_profile_ctx_t*)chr->svc->pro->ctx)->gatts_if ,     
-                                          ((mrt_profile_ctx_t*)chr->svc->pro->ctx)->conn_id,
-                                          chr->handles.val_handle,
-                                          len,
-                                          data,
-                                          (chr->cccd & MRT_CCCD_INDICATE_ENABLED) >> 1);
-    }
-
-    //Read back the value to make sure cache is in sync
-    mrt_gatt_get_char_val(chr);
-
-    return MRT_STATUS_OK;
-}
-
-/**
- * @brief Gets the characteristic and updates the local cache (chr->cache.data) from the actual data on the device
- * @param chr ptr to char
- * @return status
- */
-mrt_status_t mrt_gatt_get_char_val(mrt_gatt_char_t* chr)
-{
-    //Read back the value to make sure cache is in sync
-    esp_ble_gatts_get_attr_value(chr->handles.val_handle, &chr->data.len, (const uint8_t **) &chr->data.value);
-
-    return MRT_STATUS_OK;
-}
 
 /**
  * @brief This functions registers the service by generating a service table and registering it
